@@ -27,11 +27,12 @@ const DetectScreenStack = ({ navigation }) => {
                         <NavigationDrawerHeader navigationProps={navigation}/>
                     ),
                     headerStyle: {
-                        backgroundColor: theme.colors.primary,
+                        backgroundColor: theme.colors.primary,   
+                        shadowColor: 'transparent'                     
                     },
                     headerBackTitle: 'Wróć',
                     headerBackTitleVisible: true,
-                    headerTintColor: theme.colors.gray100,
+                    headerTintColor: theme.colors.primary,
                     headerTitleStyle: {
                         fontWeight: "bold",
                         fontSize: 24,
@@ -76,7 +77,7 @@ const BirdCatalogScreenStack = ({ navigation }) => {
 };
 
 
-const DefaultNavigatorRoutes = (props) => {
+const DefaultNavigatorRoutes = () => {
 
     return (
         <Drawer.Navigator
