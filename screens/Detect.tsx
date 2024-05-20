@@ -10,9 +10,9 @@ import {
 import { theme } from "../core/theme";
 import { Audio } from "expo-av";
 
-const ScreenWithButton = () => {
+export default function Detect({ navigation }) {
     const [recording, setRecording] = React.useState<Audio.Recording>();
-    const [savedRecording, setSavedRecording] = React.useState<Audio.Sound>();
+    const [savedRecording, setSavedRecording] = React.useState<Audio.SoundObject>();
 
     async function startRecording() {
         try {
@@ -33,17 +33,22 @@ const ScreenWithButton = () => {
     async function stopRecording() {
         setRecording(undefined);
         await recording.stopAndUnloadAsync();
-        const { sound } = await recording.createNewLoadedSoundAsync();
+        const sound = await recording.createNewLoadedSoundAsync();
+
         setSavedRecording(sound);
     }
 
     function showRecordingLine() {
         if (!savedRecording) return;
+        
         return (
             <View style={styles.row}>
                 <Text style={styles.fill}>Saved Recording</Text>
                 <Button
-                    onPress={() => savedRecording.replayAsync()}
+                    onPress={() => {
+                        savedRecording.sound.replayAsync();
+                        navigation.navigate('BirdDetails', savedRecording)
+                    }}
                     title="Play"
                 ></Button>
             </View>
@@ -69,9 +74,7 @@ const ScreenWithButton = () => {
     );
 };
 
-export default ScreenWithButton;
-
-const styles = StyleSheet.create({
+const styles = StyleSheet.create({ // TO DELETE FOR TESTS ONLY
     container: {
         flex: 1,
         backgroundColor: "#fff",
