@@ -69,7 +69,8 @@ export default function Detect({ navigation }) {
             >
                 <Image source={require("../assets/icon.png")} className="w-48 h-48" />
             </TouchableOpacity>
-            {showRecordingLine()}
+            {/* TO DELETE FOR TESTS ONLY */}
+            {showRecordingLine() } 
         </View>
     );
 };
