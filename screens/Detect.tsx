@@ -7,14 +7,13 @@ import {
     Button,
     StyleSheet,
 } from "react-native";
-import { theme } from "../core/theme";
 import { Audio } from "expo-av";
 import Ionicons from "react-native-vector-icons/Ionicons";
 import * as Animatable from 'react-native-animatable';
 
 export default function Detect({ navigation }) {
     const [recording, setRecording] = React.useState<Audio.Recording>();
-    const [savedRecording, setSavedRecording] = React.useState<Audio.SoundObject>();
+    const [savedRecording, setSavedRecording] = React.useState<Audio.Recording>();
 
     async function startRecording() {
         try {
@@ -35,9 +34,7 @@ export default function Detect({ navigation }) {
     async function stopRecording() {
         setRecording(undefined);
         await recording.stopAndUnloadAsync();
-        const sound = await recording.createNewLoadedSoundAsync();
-
-        setSavedRecording(sound);
+        setSavedRecording(recording);
     }
 
     function showRecordingLine() { // TO DELETE FOR TESTS ONLY
@@ -48,7 +45,6 @@ export default function Detect({ navigation }) {
                 <Text style={styles.fill}>Saved Recording</Text>
                 <Button
                     onPress={() => {
-                        savedRecording.sound.replayAsync();
                         navigation.navigate('BirdDetails', savedRecording)
                     }}
                     title="Play"
