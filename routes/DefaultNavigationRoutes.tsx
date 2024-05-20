@@ -45,10 +45,12 @@ const DetectScreenStack = ({ navigation }) => {
                 name="BirdDetails"
                 component={BirdDetails}
                 options={{
-                    title: "Wynik wyszukiwania",
+                    title: "",
                     headerStyle: {
                         backgroundColor: theme.colors.primary,
+                        shadowColor: 'transparent'                     
                     },
+                    headerBackImage: () => <Ionicons name="arrow-back" size={50} color={theme.colors.gray100}  />,
                     headerBackTitle: 'Wróć',
                     headerTintColor: theme.colors.gray100,
                     headerTitleStyle: {
