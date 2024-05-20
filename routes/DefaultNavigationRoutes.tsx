@@ -6,6 +6,7 @@ import Detect from "../screens/Detect";
 import BirdCatalog from '../screens/BirdCatalog';
 import NavigationDrawerHeader from '../components/NavigationDrawerHeader';
 import { theme } from '../core/theme';
+import BirdDetails from '../screens/BirdDetails';
 
 const Stack = createStackNavigator();
 const Drawer = createDrawerNavigator();
@@ -36,6 +37,23 @@ const DetectScreenStack = ({ navigation }) => {
                     headerTitleStyle: {
                         fontWeight: "bold",
                         fontSize: 24,
+                        padding: 5,
+                    },
+                }}
+            />
+            <Stack.Screen
+                name="BirdDetails"
+                component={BirdDetails}
+                options={{
+                    title: "Wynik wyszukiwania",
+                    headerStyle: {
+                        backgroundColor: theme.colors.primary,
+                    },
+                    headerBackTitle: 'Wróć',
+                    headerTintColor: theme.colors.gray100,
+                    headerTitleStyle: {
+                        fontWeight: "bold",
+                        fontSize: 22,
                         padding: 5,
                     },
                 }}
