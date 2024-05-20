@@ -1,9 +1,8 @@
-import React, { useEffect } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
     View,
-    TouchableOpacity,
     Image,
-    Text
+    Text,
 } from "react-native";
 import { theme } from "../core/theme";
 import { Audio } from "expo-av";
@@ -12,11 +11,21 @@ import Svg, { Rect } from 'react-native-svg';
 
 export default function BirdDetails({ route }) {
 
-    const [savedRecording, setSavedRecording] = React.useState<Audio.SoundObject>(route.params);
+    const [savedRecording] = React.useState<Audio.Recording>(route.params);
+    const sound = useRef(new Audio.Sound());
 
-    useEffect(() => {
-        //console.log(savedRecording.status.uri);
-        //processAudioData(savedRecording.status.uri); // doesn't work
+    useEffect(() => {  // TO DELETE FOR TESTS ONLY
+
+        const loadRecording = async () => {
+            try {
+              await sound.current.loadAsync({ uri: savedRecording.getURI() });
+              await sound.current.playAsync();
+            } catch (error) {
+              console.error("Error loading recording:", error);
+            }
+        };
+
+        loadRecording();
     }, [savedRecording]);
 
     const processAudioData = (audioData) => {
