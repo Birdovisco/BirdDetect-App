@@ -9,6 +9,8 @@ import {
 } from "react-native";
 import { theme } from "../core/theme";
 import { Audio } from "expo-av";
+import Ionicons from "react-native-vector-icons/Ionicons";
+import * as Animatable from 'react-native-animatable';
 
 export default function Detect({ navigation }) {
     const [recording, setRecording] = React.useState<Audio.Recording>();
@@ -38,7 +40,7 @@ export default function Detect({ navigation }) {
         setSavedRecording(sound);
     }
 
-    function showRecordingLine() {
+    function showRecordingLine() { // TO DELETE FOR TESTS ONLY
         if (!savedRecording) return;
         
         return (
@@ -55,19 +57,42 @@ export default function Detect({ navigation }) {
         );
     }
 
+    const bouncingAnimation = {
+        0: { height: 14 },
+        0.5: { height: 40 },
+        1: { height: 14 },
+    };
+
     return (
-        <View
-            className="flex-1 justify-center items-center bg-theme-primary"
-            style={{ backgroundColor: theme.colors.primary }}
-        >
-            <Text className="text-white text-lg mb-4">
-                {recording ? "Stop Recording" : "Start Recording"}
-            </Text>
+        <View className="flex-1 items-center justify-center bg-primary">
+            {/* Title */}
+            <View className="justify-center items-center mb-10">
+                <Text className="text-white text-4xl font-bold text-center mb-1">RECORD</Text>
+                <Text className="text-white text-4xl font-bold text-center mb-10">THE BIRD</Text>
+                {recording ? (
+                    <View className="flex-row space-x-1 h-14">
+                        <Animatable.View className="w-1 bg-white self-center" animation={bouncingAnimation} iterationCount="infinite" duration={400} delay={100}/>
+                        <Animatable.View className="w-1 bg-white self-center" animation={bouncingAnimation} iterationCount="infinite" duration={400} delay={50} />
+                        <Animatable.View className="w-1 bg-white self-center" animation={bouncingAnimation} iterationCount="infinite" duration={400} delay={150} />
+                        <Animatable.View className="w-1 bg-white self-center" animation={bouncingAnimation} iterationCount="infinite" duration={400} />
+                    </View>
+                ) : (
+                    <View className="flex-row space-x-1 h-14">
+                        <Ionicons name="mic-outline" size={50} color="#FFFFFF"/>
+                    </View>
+                )}
+            </View>
+
+            {/* Bird Icon Button */}
             <TouchableOpacity
                 onPress={recording ? stopRecording : startRecording}
-                className="w-56 h-56 rounded-full bg-white justify-center items-center"
+                className="justify-center items-center bg-primary"
             >
-                <Image source={require("../assets/icon.png")} className="w-48 h-48" />
+                <View className="w-56 h-56 rounded-full justify-center items-center bg-primary border-2 border-dashed border-white">
+                    <View className="w-52 h-52 rounded-full bg-white justify-center items-center bg-primary border-2 border-solid border-white">
+                        <Image source={require("../assets/icon_white.png")} className="w-40 h-40" />
+                    </View>
+                </View>
             </TouchableOpacity>
             {/* TO DELETE FOR TESTS ONLY */}
             {showRecordingLine() } 
@@ -76,12 +101,6 @@ export default function Detect({ navigation }) {
 };
 
 const styles = StyleSheet.create({ // TO DELETE FOR TESTS ONLY
-    container: {
-        flex: 1,
-        backgroundColor: "#fff",
-        alignItems: "center",
-        justifyContent: "center",
-    },
     row: {
         flexDirection: "row",
         alignItems: "center",
