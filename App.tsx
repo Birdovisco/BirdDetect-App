@@ -7,6 +7,7 @@ import { PaperProvider } from "react-native-paper";
 import { NavigationContainer } from "@react-navigation/native";
 import { theme } from "./core/theme";
 import { createStackNavigator } from "@react-navigation/stack";
+import Toast from "react-native-toast-message";
 
 const Stack = createStackNavigator();
 
@@ -24,6 +25,7 @@ export default function App() {
                     </Stack.Navigator>
                 </NavigationContainer>
             <StatusBar style={"light"} />
+            <Toast />
             </PaperProvider>
         </GestureHandlerRootView>
     );
