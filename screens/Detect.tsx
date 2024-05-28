@@ -1,19 +1,31 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 import {
     View,
     TouchableOpacity,
     Image,
     Text,
     Button,
-    StyleSheet,
 } from "react-native";
 import { Audio } from "expo-av";
 import Ionicons from "react-native-vector-icons/Ionicons";
 import * as Animatable from 'react-native-animatable';
+import Toast from 'react-native-toast-message';
 
 export default function Detect({ navigation }) {
+
+    const MINIMUM_RECORDING_DURATION = 2000; // 5 seconds in milliseconds
+    const [recordingStartTime, setRecordingStartTime] = useState(null);
     const [recording, setRecording] = React.useState<Audio.Recording>();
     const [savedRecording, setSavedRecording] = React.useState<Audio.Recording>();
+
+    const showToast = (type: string, text1: string, text2: string) => { // TODO rewrite as component
+        Toast.show({
+          type,
+          text1,
+          text2,
+          position: 'bottom'
+        });
+    }
 
     async function startRecording() {
         try {
@@ -27,31 +39,33 @@ export default function Detect({ navigation }) {
                     Audio.RecordingOptionsPresets.HIGH_QUALITY
                 );
                 setRecording(recording);
+                setRecordingStartTime(Date.now());
             }
-        } catch (err) {}
+        } catch (err) {
+            console.error("Failed to start recording:", err);
+        }
     }
-
+    
     async function stopRecording() {
-        setRecording(undefined);
-        await recording.stopAndUnloadAsync();
-        setSavedRecording(recording);
+        if (recording) {
+            const elapsedTime = Date.now() - recordingStartTime;
+            if (elapsedTime < MINIMUM_RECORDING_DURATION) {
+                showToast('error', 'Recording is too short', `Please record for at least ${MINIMUM_RECORDING_DURATION / 1000} seconds.`);
+                return;
+            }
+    
+            setRecording(undefined);
+            await recording.stopAndUnloadAsync();
+            setSavedRecording(recording);
+        }
     }
 
-    function showRecordingLine() { // TO DELETE FOR TESTS ONLY
-        if (!savedRecording) return;
-        
-        return (
-            <View style={styles.row}>
-                <Text style={styles.fill}>Saved Recording</Text>
-                <Button
-                    onPress={() => {
-                        navigation.navigate('BirdDetails', savedRecording)
-                    }}
-                    title="Play"
-                ></Button>
-            </View>
-        );
-    }
+    useEffect(() => {
+        if (savedRecording) {
+            Toast.hide();
+            navigation.navigate('BirdDetails', savedRecording);
+        }
+    }, [savedRecording]);
 
     const bouncingAnimation = {
         0: { height: 14 },
@@ -90,22 +104,6 @@ export default function Detect({ navigation }) {
                     </View>
                 </View>
             </TouchableOpacity>
-            {/* TO DELETE FOR TESTS ONLY */}
-            {showRecordingLine() } 
         </View>
     );
 };
-
-const styles = StyleSheet.create({ // TO DELETE FOR TESTS ONLY
-    row: {
-        flexDirection: "row",
-        alignItems: "center",
-        justifyContent: "center",
-        marginLeft: 10,
-        marginRight: 40,
-    },
-    fill: {
-        flex: 1,
-        margin: 15,
-    },
-});
