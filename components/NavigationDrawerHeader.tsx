@@ -13,7 +13,7 @@ const NavigationDrawerHeader = (props) => {
     return (
         <View style={{ flexDirection: "row" }}>
             <TouchableOpacity onPress={toggleDrawer}>
-                <Ionicons name="menu" size={32} style={{marginLeft: 12, color: theme.colors.gray100}} color="white" />
+                <Ionicons name="menu" size={50} style={{marginLeft: 20, marginTop: 10, color: theme.colors.gray100}} color="white" />
             </TouchableOpacity>
         </View>
     );
