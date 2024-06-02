@@ -1,45 +1,46 @@
 name: BirdDetect CI
 
 on:
-    push:
-    # only main branch
-    #     branches:
-    #         - 'main'
-    # pull_request:
-    #     branches:
-    #         - 'main'
-    
-    # on all branches
-        branches:
-            - '**'
+  push:
+  # only main branch
+  #     branches:
+  #         - 'main'
+  # pull_request:
+  #     branches:
+  #         - 'main'
+  
+  # on all branches
+    branches:
+      - '**'
 
 jobs:
-    test:
-        runs-on: ubuntu-latest
-    
-        strategy:
-        matrix:
-            node-version: [20.x] # Node.js version > 19
-    
-        steps:
-        - name: Checkout repository
+  test:
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        node-version: [20.x] # Node.js version > 19
+
+    steps:
+      - name: Checkout repository
         uses: actions/checkout@v2
-    
-        - name: Set up Node.js
+
+      - name: Set up Node.js
         uses: actions/setup-node@v2
         with:
-            node-version: ${{ matrix.node-version }}
-    
-        - name: Install Yarn
+          node-version: ${{ matrix.node-version }}
+
+      - name: Install Yarn
         run: npm install -g yarn
-    
-        - name: Install dependencies
+
+      - name: Install dependencies
         run: yarn install
-    
-        - name: Set up Expo
+
+      - name: Set up Expo
         run: yarn global add expo-cli
-    
-        - name: Run unit tests
-        run: yarn test
-        run: echo "It's a pipeline test"
-        
+
+      - name: Run unit tests
+        run: |
+          yarn test
+          echo "It's a pipeline test"
+      
