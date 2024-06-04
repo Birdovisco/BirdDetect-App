@@ -10,6 +10,7 @@ import { Audio } from "expo-av";
 import Ionicons from "react-native-vector-icons/Ionicons";
 import * as Animatable from 'react-native-animatable';
 import Toast from 'react-native-toast-message';
+import * as tf from '@tensorflow/tfjs';
 
 export default function Detect({ navigation }) {
 
@@ -17,6 +18,8 @@ export default function Detect({ navigation }) {
     const [recordingStartTime, setRecordingStartTime] = useState(null);
     const [recording, setRecording] = React.useState<Audio.Recording>();
     const [savedRecording, setSavedRecording] = React.useState<Audio.Recording>();
+    const [prediction, setPrediction] = useState(null);
+    const [model, setModel] = useState<tf.GraphModel>();
 
     const showToast = (type: string, text1: string, text2: string) => { // TODO rewrite as component
         Toast.show({
@@ -57,8 +60,58 @@ export default function Detect({ navigation }) {
             setRecording(undefined);
             await recording.stopAndUnloadAsync();
             setSavedRecording(recording);
+            
+            await predictLabel();
+            console.log("Predykcja: " + getBirdName(prediction));
         }
     }
+
+    async function predictLabel() {
+        try {
+            console.log(savedRecording);
+
+            const response = await fetch(savedRecording.getURI());
+            const audioCtx = new AudioContext();
+            const buffer = await audioCtx.decodeAudioData(await response.arrayBuffer());
+            
+            const input = tf.tensor(buffer.getChannelData(0));
+            const output = await model.predict(input).argMax(0);
+            setPrediction(output);
+        } catch (e) {
+            console.error(e);
+        }
+        
+    }
+
+    function getBirdName(tensor) {
+        const names = ['Skowronek', 'Krzyżówka', 'Gęś białoczelna', 'Gęś zbożowa',
+        'Jerzyk', 'Mewa śmieszka', 'Gołąb miejski', 'Grzywacz', 'Gawron', 'Kawka',
+        'Kukułka', 'Modraszka', 'Oknówka', 'Łyska', 'Sójka', 'Słowik szary',
+        'Słowik rdzawy', 'Sroka', 'Brzegówka', 'Kowalik'];
+
+        try {
+            const idx = tensor ? tensor.dataSync()[0] : 20;
+            return names[idx];
+        } catch (e) {
+            console.error(e);
+            return 'Error';
+        }
+    }
+
+    useEffect(() => {
+        const loadModel = async () => {
+            // require("../model/model.json");
+            // require("../model/group1-shard1of4.bin");
+            // require("../model/group1-shard2of4.bin");
+            // require("../model/group1-shard3of4.bin");
+            // require("../model/group1-shard4of4.bin");
+    
+            const model = await tf.loadGraphModel('./model/model.json');
+            setModel(model);
+        }
+
+        loadModel();
+    }, []);
 
     useEffect(() => {
         if (savedRecording) {
