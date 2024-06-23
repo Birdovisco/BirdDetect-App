@@ -29,40 +29,6 @@ export default function BirdDetails({ route }) {
         loadRecording();
     }, [savedRecording]);
 
-    const processAudioData = (audioData) => {
-        const fft = new FFT(1024); // FFT size
-        const out = fft.createComplexArray();
-        const data = new Float32Array(audioData);
-      
-        fft.realTransform(out, data);
-        fft.completeSpectrum(out);
-      
-        console.log(out);
-        return out;
-    };
-
-    const spectrogram = (data) => {
-        const barWidth = 2;
-        const barSpacing = 1;
-        const height = 200;
-      
-        return (
-          <View>
-            <Svg height={height} width={data.length * (barWidth + barSpacing)}>
-              {data.map((value, index) => (
-                <Rect
-                  key={index}
-                  x={index * (barWidth + barSpacing)}
-                  y={height - (value / 255) * height}
-                  width={barWidth}
-                  height={(value / 255) * height}
-                />
-              ))}
-            </Svg>
-          </View>
-        );
-    };
-
     const playSound = async () => {
         try {
             await sound.current.playAsync();

@@ -11,6 +11,7 @@ import Ionicons from "react-native-vector-icons/Ionicons";
 import * as Animatable from 'react-native-animatable';
 import Toast from 'react-native-toast-message';
 import * as tf from '@tensorflow/tfjs';
+import { bundleResourceIO } from '@tensorflow/tfjs-react-native';
 
 export default function Detect({ navigation }) {
 
@@ -20,6 +21,25 @@ export default function Detect({ navigation }) {
     const [savedRecording, setSavedRecording] = React.useState<Audio.Recording>();
     const [prediction, setPrediction] = useState(null);
     const [model, setModel] = useState<tf.GraphModel>();
+    const [isModelReady, setIsModelReady] = useState(false);
+
+    useEffect(() => {
+        const loadModel = async () => {
+          await tf.ready();
+          const modelJson = require('../model/model.json');
+          const modelWeights = [
+            require('../model/group1-shard1of4.bin'),
+            require('../model/group1-shard2of4.bin'),
+            require('../model/group1-shard3of4.bin'),
+            require('../model/group1-shard4of4.bin'),
+          ];
+          const model = await tf.loadGraphModel(bundleResourceIO(modelJson, modelWeights));
+          setModel(model);
+          setIsModelReady(true);
+        };
+    
+        loadModel();
+    }, []);
 
     const showToast = (type: string, text1: string, text2: string) => { // TODO rewrite as component
         Toast.show({
@@ -61,8 +81,8 @@ export default function Detect({ navigation }) {
             await recording.stopAndUnloadAsync();
             setSavedRecording(recording);
             
-            await predictLabel();
-            console.log("Predykcja: " + getBirdName(prediction));
+            //await predictLabel();
+            //console.log("Predykcja: " + getBirdName(prediction));
         }
     }
 
@@ -99,24 +119,9 @@ export default function Detect({ navigation }) {
     }
 
     useEffect(() => {
-        const loadModel = async () => {
-            // require("../model/model.json");
-            // require("../model/group1-shard1of4.bin");
-            // require("../model/group1-shard2of4.bin");
-            // require("../model/group1-shard3of4.bin");
-            // require("../model/group1-shard4of4.bin");
-    
-            const model = await tf.loadGraphModel('./model/model.json');
-            setModel(model);
-        }
-
-        loadModel();
-    }, []);
-
-    useEffect(() => {
         if (savedRecording) {
             Toast.hide();
-            navigation.navigate('BirdDetails', savedRecording);
+            //navigation.navigate('BirdDetails', savedRecording);
         }
     }, [savedRecording]);
 
