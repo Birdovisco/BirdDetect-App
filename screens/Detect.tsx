@@ -3,15 +3,14 @@ import {
     View,
     TouchableOpacity,
     Image,
-    Text,
-    Button,
+    Text
 } from "react-native";
 import { Audio } from "expo-av";
 import Ionicons from "react-native-vector-icons/Ionicons";
 import * as Animatable from 'react-native-animatable';
 import Toast from 'react-native-toast-message';
 import * as tf from '@tensorflow/tfjs';
-import { bundleResourceIO } from '@tensorflow/tfjs-react-native';
+import { bundleResourceIO, asyncStorageIO } from '@tensorflow/tfjs-react-native';
 
 export default function Detect({ navigation }) {
 
@@ -25,6 +24,7 @@ export default function Detect({ navigation }) {
 
     useEffect(() => {
         const loadModel = async () => {
+          tf.setBackend('webgl');
           await tf.ready();
           const modelJson = require('../model/model.json');
           const modelWeights = [
@@ -33,9 +33,11 @@ export default function Detect({ navigation }) {
             require('../model/group1-shard3of4.bin'),
             require('../model/group1-shard4of4.bin'),
           ];
+          console.log("Loading model...");
           const model = await tf.loadGraphModel(bundleResourceIO(modelJson, modelWeights));
           setModel(model);
           setIsModelReady(true);
+          console.log("Model loaded.");
         };
     
         loadModel();
@@ -81,26 +83,24 @@ export default function Detect({ navigation }) {
             await recording.stopAndUnloadAsync();
             setSavedRecording(recording);
             
-            //await predictLabel();
-            //console.log("Predykcja: " + getBirdName(prediction));
+            await predictLabel();
+            console.log("Predykcja: " + getBirdName(prediction));
         }
     }
 
     async function predictLabel() {
-        try {
-            console.log(savedRecording);
+        console.log(savedRecording);
 
-            const response = await fetch(savedRecording.getURI());
-            const audioCtx = new AudioContext();
-            const buffer = await audioCtx.decodeAudioData(await response.arrayBuffer());
-            
-            const input = tf.tensor(buffer.getChannelData(0));
-            const output = await model.predict(input).argMax(0);
-            setPrediction(output);
-        } catch (e) {
-            console.error(e);
-        }
+        const response = await fetch(savedRecording.getURI());
+        const audioCtx = new AudioContext();
+        const buffer = await audioCtx.decodeAudioData(await response.arrayBuffer());
         
+        const input = tf.tensor(buffer.getChannelData(0));
+        console.log("predicting...");
+        const output = await model.predict(input).argMax(0);
+        console.log("done.");
+        console.log(output.dataSync()[0])
+        setPrediction(output);
     }
 
     function getBirdName(tensor) {
@@ -110,7 +110,7 @@ export default function Detect({ navigation }) {
         'Słowik rdzawy', 'Sroka', 'Brzegówka', 'Kowalik'];
 
         try {
-            const idx = tensor ? tensor.dataSync()[0] : 20;
+            const idx = tensor.dataSync()[0];
             return names[idx];
         } catch (e) {
             console.error(e);
