@@ -10,7 +10,8 @@ import Ionicons from "react-native-vector-icons/Ionicons";
 import * as Animatable from 'react-native-animatable';
 import Toast from 'react-native-toast-message';
 import * as tf from '@tensorflow/tfjs';
-import { bundleResourceIO, asyncStorageIO } from '@tensorflow/tfjs-react-native';
+import { bundleResourceIO } from '@tensorflow/tfjs-react-native';
+import '@tensorflow/tfjs-backend-webgl';
 
 export default function Detect({ navigation }) {
 
@@ -24,7 +25,6 @@ export default function Detect({ navigation }) {
 
     useEffect(() => {
         const loadModel = async () => {
-          tf.setBackend('webgl');
           await tf.ready();
           const modelJson = require('../model/model.json');
           const modelWeights = [
@@ -39,7 +39,7 @@ export default function Detect({ navigation }) {
           setIsModelReady(true);
           console.log("Model loaded.");
         };
-    
+
         loadModel();
     }, []);
 
@@ -92,15 +92,23 @@ export default function Detect({ navigation }) {
         console.log(savedRecording);
 
         const response = await fetch(savedRecording.getURI());
-        const audioCtx = new AudioContext();
-        const buffer = await audioCtx.decodeAudioData(await response.arrayBuffer());
-        
-        const input = tf.tensor(buffer.getChannelData(0));
+        const buffer = await response.arrayBuffer();
+        const input = tf.tensor(decodeAudio(buffer));
+
         console.log("predicting...");
         const output = await model.predict(input).argMax(0);
         console.log("done.");
-        console.log(output.dataSync()[0])
         setPrediction(output);
+    }
+
+    function decodeAudio(buffer: ArrayBuffer) {
+        const arrInt = new Int16Array(buffer.slice(0, buffer.byteLength - buffer.byteLength%2));
+        const arrFloat = new Float32Array(arrInt.length);
+        for (let i = 0; i < arrFloat.length; i++) {
+            arrFloat[i] = arrInt[i] / 32768;
+        }
+
+        return arrFloat;
     }
 
     function getBirdName(tensor) {
