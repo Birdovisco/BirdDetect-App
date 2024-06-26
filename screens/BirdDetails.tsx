@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useRef } from "react";
 import {
     View,
     Image,
@@ -7,8 +7,6 @@ import {
 } from "react-native";
 import { theme } from "../core/theme";
 import { Audio } from "expo-av";
-import FFT from "fft.js";
-import Svg, { Rect } from 'react-native-svg';
 import Ionicons from "react-native-vector-icons/Ionicons";
 
 export default function BirdDetails({ route }) {
@@ -65,26 +63,27 @@ export default function BirdDetails({ route }) {
         "Gatunek niewielkiego, osiadłego ptaka z rodziny kowalików (Sittidae), zamieszkujący Eurazję oraz północno-zachodnią Afrykę. Nie jest zagrożony. Zamieszkuje licznie lasy Europy, Maghreb, Azję Mniejszą i znaczną część umiarkowanej Azji do Pacyfiku i granicy tropików. W Polsce szeroko rozpowszechniony, średnio liczny ptak lęgowy. Ptak wielkości wróbla. Krępa sylwetka ze stosunkowo dużą głową, krótkim ogonem i mocnym, dłutowatym dziobem podobnym do dzioba dzięciołów. Obie płci podobnych rozmiarów, ubarwione prawie jednakowo, choć samiec w porównaniu z samicą ma bardziej rdzawy spód ciała i ciemnokasztanowe boki ciała z wiśniowym odcieniem."
     ];
 
-    const [savedRecording] = React.useState<Audio.Recording>(route.params);
+    const [savedRecording] = React.useState<Audio.Recording>(route.params.rec);
+    const label = route.params.lab;
     const sound = useRef(new Audio.Sound());
     const [birdName, setBirdName] = React.useState<String>("error");
     const [birdNameLatin, setBirdNameLatin] = React.useState<String>("error");
-    const [birdPhoto, setBirdPhoto] = React.useState<NodeRequire>(require('../assets/birdPhotos/birdImage.jpg'));
+    const [birdPhoto, setBirdPhoto] = React.useState('../assets/birdPhotos/birdImage.jpg');
     const [birdDesc, setBirdDesc] = React.useState<String>("error");
 
     useEffect(() => {
-
         const loadRecording = async () => {
             try {
-              await sound.current.loadAsync({ uri: savedRecording.getURI() });
+                if (!route.params.rec) return;
+                await sound.current.loadAsync({ uri: savedRecording.getURI() });
             } catch (error) {
-              console.error("Error loading recording:", error);
+                console.error("Error loading recording:", error);
             }
         };
 
         loadRecording();
-        getBirdData(Math.floor(Math.random() * 20))
-    }, [savedRecording]);
+        getBirdData(label);
+    }, []);
 
     const getBirdData = (index) => {
         setBirdName(names[index]);
@@ -93,43 +92,9 @@ export default function BirdDetails({ route }) {
         setBirdDesc(descs[index]);
     };
 
-    const processAudioData = (audioData) => {
-        const fft = new FFT(1024); // FFT size
-        const out = fft.createComplexArray();
-        const data = new Float32Array(audioData);
-      
-        fft.realTransform(out, data);
-        fft.completeSpectrum(out);
-      
-        console.log(out);
-        return out;
-    };
-
-    const spectrogram = (data) => {
-        const barWidth = 2;
-        const barSpacing = 1;
-        const height = 200;
-      
-        return (
-          <View>
-            <Svg height={height} width={data.length * (barWidth + barSpacing)}>
-              {data.map((value, index) => (
-                <Rect
-                  key={index}
-                  x={index * (barWidth + barSpacing)}
-                  y={height - (value / 255) * height}
-                  width={barWidth}
-                  height={(value / 255) * height}
-                />
-              ))}
-            </Svg>
-          </View>
-        );
-    };
-
     const playSound = async () => {
         try {
-            await sound.current.playAsync();
+            await sound.current.replayAsync();
         } catch (error) {
             console.error('Error playing sound:', error);
         }
@@ -145,9 +110,11 @@ export default function BirdDetails({ route }) {
             <View className="flex-1 bg-white p-5 items-center -mt-16 pt-24">
                 <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center' }}>
                     <Text className="text-2xl font-bold text-center mb-1">{birdName}</Text>
+                    {!route.params.rec ? null :
                     <TouchableOpacity onPress={playSound} className='ml-2'>
                         <Ionicons name="play-circle" size={24} color="black" />
                     </TouchableOpacity>
+                    }
                 </View>
                 <Text className="text-lg italic text-center mb-5">{birdNameLatin}</Text>
                 <Text className="text-base text-center leading-6">{birdDesc}</Text>
