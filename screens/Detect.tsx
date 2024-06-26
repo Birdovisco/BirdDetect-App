@@ -19,7 +19,7 @@ export default function Detect({ navigation }) {
     const MINIMUM_RECORDING_DURATION = 2000; // 2 seconds in milliseconds
     const [recordingStartTime, setRecordingStartTime] = useState(null);
     const [recording, setRecording] = useState<Audio.Recording>();
-    const [savedRecordingUri, setSavedRecordingUri] = useState<string>();
+    const [savedRecording, setSavedRecording] = useState<Audio.Recording>();
     const [prediction, setPrediction] = useState(undefined);
     const [model, setModel] = useState<tf.GraphModel>();
     const [buttonDisabled, setButtonDisabled] = useState(true);
@@ -93,8 +93,7 @@ export default function Detect({ navigation }) {
             setShowBird(false);
             setPrediction(undefined);
             await recording.stopAndUnloadAsync();
-            const uri = recording.getURI();
-            setSavedRecordingUri(uri);
+            setSavedRecording(recording);
             setRecording(undefined);
         }
     }
@@ -105,7 +104,7 @@ export default function Detect({ navigation }) {
             setIsBusy(true);
             setButtonDisabled(true);
             Toast.hide();
-            const response = await fetch(savedRecordingUri);
+            const response = await fetch(savedRecording.getURI());
             const buffer = await response.arrayBuffer();
             const input = tf.tensor(decodeAudio(buffer));
 
@@ -132,23 +131,23 @@ export default function Detect({ navigation }) {
     }
 
     useEffect(() => {
-        if (savedRecordingUri) {
+        if (savedRecording) {
             showToast('info', 'Prediction is running...', 'Please wait for the model result');
             predictLabel();
         } 
-    }, [savedRecordingUri]);
+    }, [savedRecording]);
 
     useEffect(() => {
         if (showBird) {
             setShowBird(false);
             Toast.hide();
-            navigation.navigate('BirdDetails', { 'recUri': savedRecordingUri, 'lab': prediction.dataSync()[0] });
+            navigation.navigate('BirdDetails', { 'rec': savedRecording, 'lab': prediction.dataSync()[0] });
             setButtonDisabled(false);
         }
     }, [showBird]);
 
     useEffect(() => {
-        if (savedRecordingUri && prediction) setShowBird(true);
+        if (savedRecording && prediction) setShowBird(true);
     }, [prediction]);
 
     const bouncingAnimation = {

@@ -83,7 +83,7 @@ export default function BirdDetails({ route }) {
 
         loadRecording();
         getBirdData(label);
-    }, [savedRecording]);
+    }, []);
 
     const getBirdData = (index) => {
         setBirdName(names[index]);
