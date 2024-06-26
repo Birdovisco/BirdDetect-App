@@ -92,6 +92,25 @@ const BirdCatalogScreenStack = ({ navigation }) => {
                     },
                 }}
             />
+            <Stack.Screen
+                name="BirdDetails"
+                component={BirdDetails}
+                options={{
+                    title: "",
+                    headerStyle: {
+                        backgroundColor: theme.colors.primary,
+                        shadowColor: 'transparent'                     
+                    },
+                    headerBackImage: () => <Ionicons name="arrow-back" size={50} color={theme.colors.gray100}  />,
+                    headerBackTitle: 'Wróć',
+                    headerTintColor: theme.colors.gray100,
+                    headerTitleStyle: {
+                        fontWeight: "bold",
+                        fontSize: 22,
+                        padding: 5,
+                    },
+                }}
+            />
         </Stack.Navigator>
     );
 };
