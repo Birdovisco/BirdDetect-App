@@ -19,9 +19,10 @@ export default function Detect({ navigation }) {
     const [recordingStartTime, setRecordingStartTime] = useState(null);
     const [recording, setRecording] = React.useState<Audio.Recording>();
     const [savedRecording, setSavedRecording] = React.useState<Audio.Recording>();
-    const [prediction, setPrediction] = useState(null);
+    const [prediction, setPrediction] = useState(undefined);
     const [model, setModel] = useState<tf.GraphModel>();
     const [isModelReady, setIsModelReady] = useState(false);
+    const [showBird, setShowBird] = useState(false);
 
     useEffect(() => {
         const loadModel = async () => {
@@ -78,17 +79,22 @@ export default function Detect({ navigation }) {
                 showToast('error', 'Recording is too short', `Please record for at least ${MINIMUM_RECORDING_DURATION / 1000} seconds.`);
                 return;
             }
-    
+            
+            setShowBird(false);
+            setPrediction(undefined);
             setRecording(undefined);
             await recording.stopAndUnloadAsync();
             setSavedRecording(recording);
             
             await predictLabel();
             console.log("Predykcja: " + getBirdName(prediction));
+
+            if (savedRecording && prediction) setShowBird(true);
         }
     }
 
     async function predictLabel() {
+        if (!savedRecording) return;
         console.log(savedRecording);
 
         const response = await fetch(savedRecording.getURI());
@@ -127,11 +133,12 @@ export default function Detect({ navigation }) {
     }
 
     useEffect(() => {
-        if (savedRecording) {
+        if (showBird == true) {
+            setShowBird(false);
             Toast.hide();
-            //navigation.navigate('BirdDetails', savedRecording);
+            navigation.navigate('BirdDetails', { 'rec': savedRecording, 'lab': prediction.dataSync()[0]});
         }
-    }, [savedRecording]);
+    }, [showBird]);
 
     const bouncingAnimation = {
         0: { height: 14 },
@@ -147,9 +154,9 @@ export default function Detect({ navigation }) {
                 <Text className="text-white text-4xl font-bold text-center mb-10">THE BIRD</Text>
                 {recording ? (
                     <View className="flex-row space-x-1 h-14">
-                        <Animatable.View className="w-1 bg-white self-center" animation={bouncingAnimation} iterationCount="infinite" duration={400} delay={100}/>
+                        <Animatable.View className="w-1 bg-white self-center" animation={bouncingAnimation} iterationCount="infinite" duration={400} delay={200}/>
                         <Animatable.View className="w-1 bg-white self-center" animation={bouncingAnimation} iterationCount="infinite" duration={400} delay={50} />
-                        <Animatable.View className="w-1 bg-white self-center" animation={bouncingAnimation} iterationCount="infinite" duration={400} delay={150} />
+                        <Animatable.View className="w-1 bg-white self-center" animation={bouncingAnimation} iterationCount="infinite" duration={400} delay={300} />
                         <Animatable.View className="w-1 bg-white self-center" animation={bouncingAnimation} iterationCount="infinite" duration={400} />
                     </View>
                 ) : (
