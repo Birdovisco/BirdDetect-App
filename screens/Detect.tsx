@@ -54,7 +54,7 @@ export default function Detect({ navigation }) {
         loadModel();
     }, []);
 
-    const showToast = (type, text1, text2) => {
+    const showToast = (type: string, text1: string, text2: string) => {
         Toast.show({
             type,
             text1,
@@ -175,7 +175,7 @@ export default function Detect({ navigation }) {
                 className="justify-center items-center bg-primary"
             >
                 <View className="w-56 h-56 rounded-full justify-center items-center bg-primary border-2 border-dashed border-white">
-                    <View className="w-52 h-52 rounded-full bg-white justify-center items-center bg-primary border-2 border-solid border-white">
+                    <View className="w-52 h-52 rounded-full justify-center items-center bg-primary border-2 border-solid border-white">
                         <Image source={require("../assets/icon_white.png")} className="w-40 h-40" />
                     </View>
                 </View>

@@ -1,7 +1,7 @@
 import React from "react";
 import { View, Text, Image, TouchableOpacity } from "react-native";
 import { FlashList } from "@shopify/flash-list";
-import { BIRDS } from "../config"; // Importing bird data from config.js
+import { BIRDS } from "../config";
 
 export default function BirdCatalog({ navigation }) {
   const renderItem = ({ item, index }) => (
@@ -20,10 +20,10 @@ export default function BirdCatalog({ navigation }) {
   return (
       <View className="flex-1 p-4">
         <FlashList
-            data={BIRDS} // Use the imported bird data
+            data={BIRDS}
             renderItem={renderItem}
             estimatedItemSize={100}
-            keyExtractor={(_, index) => index.toString()} // Use index for key extraction
+            keyExtractor={(_, index) => index.toString()}
         />
       </View>
   );
