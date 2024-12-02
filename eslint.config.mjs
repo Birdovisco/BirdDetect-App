@@ -2,7 +2,6 @@ import globals from "globals";
 import tseslint from "@typescript-eslint/eslint-plugin";
 import tsParser from "@typescript-eslint/parser";
 import pluginReactConfig from "eslint-plugin-react/configs/recommended.js";
-import { fixupConfigRules } from "@eslint/compat";
 
 export default [
   {
@@ -18,14 +17,6 @@ export default [
         ...globals.browser,
         ...globals.node,
       },
-    },
-    plugins: {
-      "@typescript-eslint": tseslint,
-      react: pluginReactConfig,
-    },
-    rules: {
-      ...tseslint.configs.recommended.rules,
-      ...pluginReactConfig.rules,
     },
     settings: {
       react: {
