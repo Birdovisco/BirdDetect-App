@@ -7,6 +7,7 @@ import BirdCatalog from '../screens/BirdCatalog';
 import NavigationDrawerHeader from '../components/NavigationDrawerHeader';
 import { theme } from '../core/theme';
 import BirdDetails from '../screens/BirdDetails';
+import React  from 'react';
 
 const Stack = createStackNavigator();
 const Drawer = createDrawerNavigator();

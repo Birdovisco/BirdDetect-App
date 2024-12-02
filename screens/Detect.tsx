@@ -8,20 +8,19 @@ import {
 } from "react-native";
 import { Audio } from "expo-av";
 import Ionicons from "react-native-vector-icons/Ionicons";
-import * as Animatable from 'react-native-animatable';
-import Toast from 'react-native-toast-message';
-import * as tf from '@tensorflow/tfjs';
-import { bundleResourceIO } from '@tensorflow/tfjs-react-native';
-import '@tensorflow/tfjs-backend-webgl';
+import * as Animatable from "react-native-animatable";
+import Toast from "react-native-toast-message";
+import * as tf from "@tensorflow/tfjs";
+import { bundleResourceIO } from "@tensorflow/tfjs-react-native";
+import "@tensorflow/tfjs-backend-webgl";
 
 export default function Detect({ navigation }) {
-
-    const MINIMUM_RECORDING_DURATION = 2000; // 2 seconds in milliseconds
+    const MINIMUM_RECORDING_DURATION = 2000;
     const [recordingStartTime, setRecordingStartTime] = useState(null);
-    const [recording, setRecording] = useState<Audio.Recording>();
-    const [savedRecording, setSavedRecording] = useState<Audio.Recording>();
+    const [recording, setRecording] = useState(null);
+    const [savedRecording, setSavedRecording] = useState(null);
     const [prediction, setPrediction] = useState(undefined);
-    const [model, setModel] = useState<tf.GraphModel>();
+    const [model, setModel] = useState(null);
     const [buttonDisabled, setButtonDisabled] = useState(true);
     const [isBusy, setIsBusy] = useState(false);
     const [showBird, setShowBird] = useState(false);
@@ -31,62 +30,61 @@ export default function Detect({ navigation }) {
             setIsBusy(true);
             setButtonDisabled(true);
             await tf.ready();
-            const modelJson = require('../model/model.json');
+            const modelJson = require("../model/model.json");
             const modelWeights = [
-                require('../model/group1-shard1of4.bin'),
-                require('../model/group1-shard2of4.bin'),
-                require('../model/group1-shard3of4.bin'),
-                require('../model/group1-shard4of4.bin'),
+                require("../model/group1-shard1of4.bin"),
+                require("../model/group1-shard2of4.bin"),
+                require("../model/group1-shard3of4.bin"),
+                require("../model/group1-shard4of4.bin")
             ];
-            showToast('info', 'Loading model...', 'Please wait for the model to load');
+            showToast("info", "Loading model...", "Please wait for the model to load");
             try {
                 const loadedModel = await tf.loadGraphModel(bundleResourceIO(modelJson, modelWeights));
                 setModel(loadedModel);
                 setButtonDisabled(false);
-                setIsBusy(false);
-                showToast('success', 'Model loaded!', 'Model is ready for prediction');
+                showToast("success", "Model loaded!", "Model is ready for prediction");
             } catch (error) {
                 console.error("Failed to load model", error);
-                showToast('error', 'Error loading model', 'Please try again later');
+                showToast("error", "Error loading model", "Please try again later");
+            } finally {
+                setIsBusy(false);
             }
         };
 
         loadModel();
     }, []);
 
-    const showToast = (type: string, text1: string, text2: string) => {
+    const showToast = (type, text1, text2) => {
         Toast.show({
             type,
             text1,
             text2,
-            position: 'bottom'
+            position: "bottom"
         });
     };
 
-    async function startRecording() {
+    const startRecording = async () => {
         try {
             const perm = await Audio.requestPermissionsAsync();
             if (perm.status === "granted") {
                 await Audio.setAudioModeAsync({
                     allowsRecordingIOS: true,
-                    playsInSilentModeIOS: true,
+                    playsInSilentModeIOS: true
                 });
-                const { recording } = await Audio.Recording.createAsync(
-                    Audio.RecordingOptionsPresets.HIGH_QUALITY
-                );
+                const { recording } = await Audio.Recording.createAsync(Audio.RecordingOptionsPresets.HIGH_QUALITY);
                 setRecording(recording);
                 setRecordingStartTime(Date.now());
             }
         } catch (err) {
             console.error("Failed to start recording:", err);
         }
-    }
+    };
 
-    async function stopRecording() {
+    const stopRecording = async () => {
         if (recording) {
             const elapsedTime = Date.now() - recordingStartTime;
             if (elapsedTime < MINIMUM_RECORDING_DURATION) {
-                showToast('error', 'Recording is too short', `Please record for at least ${MINIMUM_RECORDING_DURATION / 1000} seconds.`);
+                showToast("error", "Recording is too short", `Please record for at least ${MINIMUM_RECORDING_DURATION / 1000} seconds.`);
                 return;
             }
             setButtonDisabled(true);
@@ -94,15 +92,13 @@ export default function Detect({ navigation }) {
             setPrediction(undefined);
             await recording.stopAndUnloadAsync();
             setSavedRecording(recording);
-            setRecording(undefined);
+            setRecording(null);
         }
-    }
+    };
 
-    async function predictLabel() {
+    const predictLabel = async () => {
         try {
-            
             setIsBusy(true);
-            setButtonDisabled(true);
             Toast.hide();
             const response = await fetch(savedRecording.getURI());
             const buffer = await response.arrayBuffer();
@@ -111,76 +107,68 @@ export default function Detect({ navigation }) {
             await tf.nextFrame();
             const output = model.predict(input).argMax(0);
             setPrediction(output);
-            Toast.hide();
+            showToast("success", "Prediction complete!", "Bird identified");
         } catch (error) {
             console.error("Prediction error:", error);
-            showToast('error', 'Prediction failed', 'Please try again later');
-            setButtonDisabled(false);
+            showToast("error", "Prediction failed", "Please try again later");
         } finally {
             setIsBusy(false);
+            setButtonDisabled(false);
         }
-    }
+    };
 
-    function decodeAudio(buffer: ArrayBuffer) {
+    const decodeAudio = (buffer) => {
         const arrInt = new Int16Array(buffer.slice(0, buffer.byteLength - buffer.byteLength % 2));
         const arrFloat = new Float32Array(arrInt.length);
         for (let i = 0; i < arrFloat.length; i++) {
             arrFloat[i] = arrInt[i] / 32768;
         }
         return arrFloat;
-    }
+    };
 
     useEffect(() => {
         if (savedRecording) {
-            showToast('info', 'Prediction is running...', 'Please wait for the model result');
+            showToast("info", "Processing prediction...", "Please wait for the result");
             predictLabel();
-        } 
-    }, [savedRecording]);
-
-    useEffect(() => {
-        if (showBird) {
-            setShowBird(false);
-            Toast.hide();
-            navigation.navigate('BirdDetails', { 'rec': savedRecording, 'lab': prediction.dataSync()[0] });
-            setButtonDisabled(false);
         }
-    }, [showBird]);
+    }, [savedRecording]);
 
     useEffect(() => {
         if (savedRecording && prediction) setShowBird(true);
     }, [prediction]);
 
+    useEffect(() => {
+        if (showBird) {
+            navigation.navigate("BirdDetails", { rec: savedRecording, lab: prediction.dataSync()[0] });
+            setButtonDisabled(false);
+        }
+    }, [showBird]);
+
     const bouncingAnimation = {
         0: { height: 14 },
         0.5: { height: 40 },
-        1: { height: 14 },
+        1: { height: 14 }
     };
 
     return (
         <View className="flex-1 items-center justify-center bg-primary">
-            {/* Title */}
             <View className="justify-center items-center mb-10">
                 <Text className="text-white text-4xl font-bold text-center mb-1">RECORD</Text>
                 <Text className="text-white text-4xl font-bold text-center mb-10">THE BIRD</Text>
                 {recording ? (
                     <View className="flex-row space-x-1 h-14">
-                        <Animatable.View className="w-1 bg-white self-center" animation={bouncingAnimation} iterationCount="infinite" duration={400} delay={200} />
-                        <Animatable.View className="w-1 bg-white self-center" animation={bouncingAnimation} iterationCount="infinite" duration={400} delay={50} />
-                        <Animatable.View className="w-1 bg-white self-center" animation={bouncingAnimation} iterationCount="infinite" duration={400} delay={300} />
-                        <Animatable.View className="w-1 bg-white self-center" animation={bouncingAnimation} iterationCount="infinite" duration={400} />
+                        <Animatable.View className="w-1 bg-white" animation={bouncingAnimation} iterationCount="infinite" duration={400} delay={200} />
+                        <Animatable.View className="w-1 bg-white" animation={bouncingAnimation} iterationCount="infinite" duration={400} delay={50} />
+                        <Animatable.View className="w-1 bg-white" animation={bouncingAnimation} iterationCount="infinite" duration={400} delay={300} />
+                        <Animatable.View className="w-1 bg-white" animation={bouncingAnimation} iterationCount="infinite" duration={400} />
                     </View>
                 ) : (
                     <View className="flex-row space-x-1 h-14">
-                        {isBusy ? (
-                            <ActivityIndicator size="large" color="#FFFFFF" />
-                        ) : (
-                            <Ionicons name="mic-outline" size={50} color="#FFFFFF" />
-                        )}
+                        {isBusy ? <ActivityIndicator size="large" color="#FFFFFF" /> : <Ionicons name="mic-outline" size={50} color="#FFFFFF" />}
                     </View>
                 )}
             </View>
 
-            {/* Bird Icon Button */}
             <TouchableOpacity
                 disabled={buttonDisabled}
                 onPress={recording ? stopRecording : startRecording}
@@ -194,4 +182,4 @@ export default function Detect({ navigation }) {
             </TouchableOpacity>
         </View>
     );
-};
+}

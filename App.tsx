@@ -1,5 +1,4 @@
 import { StatusBar } from "expo-status-bar";
-import { StyleSheet, View, Text } from "react-native";
 import DefaultNavigatorRoutes from "./routes/DefaultNavigationRoutes";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import React from "react";
@@ -31,12 +30,3 @@ export default function App() {
         </GestureHandlerRootView>
     );
 }
-
-const styles = StyleSheet.create({
-container: {
-    flex: 1,
-    backgroundColor: "#fff",
-    alignItems: "center",
-    justifyContent: "center",
-},
-});
