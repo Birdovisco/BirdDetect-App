@@ -1,17 +1,11 @@
-import React, { useEffect, useState } from "react";
-import {
-    View,
-    TouchableOpacity,
-    Image,
-    Text,
-    ActivityIndicator
-} from "react-native";
-import { Audio } from "expo-av";
+import React, {useEffect, useState} from "react";
+import {ActivityIndicator, Image, Text, TouchableOpacity, View} from "react-native";
+import {Audio} from "expo-av";
 import Ionicons from "react-native-vector-icons/Ionicons";
 import * as Animatable from "react-native-animatable";
 import Toast from "react-native-toast-message";
 import * as tf from "@tensorflow/tfjs";
-import { bundleResourceIO } from "@tensorflow/tfjs-react-native";
+import {bundleResourceIO} from "@tensorflow/tfjs-react-native";
 import "@tensorflow/tfjs-backend-webgl";
 
 export default function Detect({ navigation }) {
@@ -96,6 +90,29 @@ export default function Detect({ navigation }) {
         }
     };
 
+    const preprocessAudio = async (buffer) => {
+        const SAMPLE_RATE = 16000; // Desired sample rate (16kHz)
+        const FRAME_SIZE = 16000; // Frame size (1 second of samples)
+
+        const audioArray = decodeAudio(buffer);
+
+        const originalSampleRate = 44100;
+        const sampleFactor = originalSampleRate / SAMPLE_RATE;
+        const sampledAudio = audioArray.filter((_, index) => index % sampleFactor === 0);
+
+        const numFrames = Math.floor(sampledAudio.length / FRAME_SIZE);
+        const frames = [];
+        for (let i = 0; i < numFrames; i++) {
+            const start = i * FRAME_SIZE;
+            const end = start + FRAME_SIZE;
+            frames.push(sampledAudio.slice(start, end));
+        }
+
+        const tensorFrames = tf.tensor(frames);
+        console.log('preprocessAudio complete! Audio ready in wav format');
+        return tensorFrames.expandDims(0);
+    };
+
     const predictLabel = async () => {
         try {
             setIsBusy(true);
@@ -103,6 +120,9 @@ export default function Detect({ navigation }) {
             const response = await fetch(savedRecording.getURI());
             const buffer = await response.arrayBuffer();
             const input = tf.tensor(decodeAudio(buffer));
+
+            // TODO insert real model to load wav
+            const inputTensor = await preprocessAudio(buffer);
 
             await tf.nextFrame();
             const output = model.predict(input).argMax(0);
