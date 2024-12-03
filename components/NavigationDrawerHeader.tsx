@@ -1,10 +1,10 @@
 
 import React from "react";
-import { View, Image, TouchableOpacity } from "react-native";
+import { View, TouchableOpacity } from "react-native";
 import Ionicons from "react-native-vector-icons/Ionicons";
 import {theme} from "../core/theme";
 
-const NavigationDrawerHeader = (props) => {
+const NavigationDrawerHeader = (props: any) => {
     const toggleDrawer = () => {
         props.navigationProps.toggleDrawer();
     };
