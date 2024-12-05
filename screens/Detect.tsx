@@ -91,25 +91,49 @@ export default function Detect({ navigation }) {
     };
 
     const preprocessAudio = async (buffer) => {
-        const SAMPLE_RATE = 16000; // Desired sample rate (16kHz)
-        const FRAME_SIZE = 16000; // Frame size (1 second of samples)
+        const SAMPLE_RATE = 16000;
+        const FRAME_SIZE = 16000;
+        const FRAME_HOP = 8000;
 
         const audioArray = decodeAudio(buffer);
 
         const originalSampleRate = 44100;
-        const sampleFactor = originalSampleRate / SAMPLE_RATE;
-        const sampledAudio = audioArray.filter((_, index) => index % sampleFactor === 0);
+        const downsampleFactor = originalSampleRate / SAMPLE_RATE;
+        const downsampledAudio = audioArray.filter((_, index) => index % downsampleFactor === 0);
 
-        const numFrames = Math.floor(sampledAudio.length / FRAME_SIZE);
-        const frames = [];
-        for (let i = 0; i < numFrames; i++) {
-            const start = i * FRAME_SIZE;
-            const end = start + FRAME_SIZE;
-            frames.push(sampledAudio.slice(start, end));
+        if (downsampledAudio.length < FRAME_SIZE) {
+            const paddedAudio = new Float32Array(FRAME_SIZE);
+            paddedAudio.set(downsampledAudio);
+
+            return tf.tensor2d([Array.from(paddedAudio)], [1, FRAME_SIZE]).expandDims(0);
         }
 
-        const tensorFrames = tf.tensor(frames);
-        console.log('preprocessAudio complete! Audio ready in wav format');
+        const numFrames = Math.floor((downsampledAudio.length - FRAME_HOP) / FRAME_HOP) + 1;
+        const frames = [];
+        for (let i = 0; i < numFrames; i++) {
+            const start = i * FRAME_HOP;
+            const end = start + FRAME_SIZE;
+            const frame = downsampledAudio.slice(start, end);
+
+            if (frame.length < FRAME_SIZE) {
+                const paddedFrame = new Float32Array(FRAME_SIZE);
+                paddedFrame.set(frame);
+                frames.push(Array.from(paddedFrame));
+            } else {
+                frames.push(Array.from(frame));
+            }
+        }
+
+        console.log("Frames structure:", frames);
+        console.log("Number of frames:", frames.length, "Frame size:", frames[0]?.length);
+
+        if (frames.length === 0) {
+            throw new Error("No valid frames could be generated from the audio.");
+        }
+
+        const tensorFrames = tf.tensor2d(frames, [frames.length, FRAME_SIZE]);
+        console.log("TensorFrames shape:", tensorFrames.shape);
+
         return tensorFrames.expandDims(0);
     };
 
@@ -119,18 +143,23 @@ export default function Detect({ navigation }) {
             Toast.hide();
             const response = await fetch(savedRecording.getURI());
             const buffer = await response.arrayBuffer();
-            const input = tf.tensor(decodeAudio(buffer));
 
-            // TODO insert real model to load wav
             const inputTensor = await preprocessAudio(buffer);
-
             await tf.nextFrame();
-            const output = model.predict(input).argMax(0);
-            setPrediction(output);
+
+            const output = model.predict(inputTensor);
+            console.log(output);
+            const predictedClass = output.argMax(-1);
+            console.log(predictedClass);
+            setPrediction(predictedClass);
             showToast("success", "Prediction complete!", "Bird identified");
         } catch (error) {
             console.error("Prediction error:", error);
-            showToast("error", "Prediction failed", "Please try again later");
+            if (error.message.includes("No valid frames")) {
+                showToast("error", "Audio too short", "Please record longer audio.");
+            } else {
+                showToast("error", "Prediction failed", "Please try again later.");
+            }
         } finally {
             setIsBusy(false);
             setButtonDisabled(false);
@@ -138,13 +167,16 @@ export default function Detect({ navigation }) {
     };
 
     const decodeAudio = (buffer) => {
-        const arrInt = new Int16Array(buffer.slice(0, buffer.byteLength - buffer.byteLength % 2));
+        const arrInt = new Int16Array(buffer.slice(0, buffer.byteLength - (buffer.byteLength % 2)));
+
         const arrFloat = new Float32Array(arrInt.length);
         for (let i = 0; i < arrFloat.length; i++) {
             arrFloat[i] = arrInt[i] / 32768;
         }
+
         return arrFloat;
     };
+
 
     useEffect(() => {
         if (savedRecording) {
