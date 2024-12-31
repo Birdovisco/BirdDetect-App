@@ -8,6 +8,8 @@ import * as tf from "@tensorflow/tfjs";
 import {bundleResourceIO} from "@tensorflow/tfjs-react-native";
 import "@tensorflow/tfjs-backend-webgl";
 import { AndroidOutputFormat, AndroidAudioEncoder, IOSOutputFormat, IOSAudioQuality } from "expo-av/build/Audio";
+import { FFmpegKit } from 'ffmpeg-kit-react-native';
+import FFT from 'fft.js';
 
 
 export default function Detect({ navigation }) {
@@ -119,45 +121,21 @@ export default function Detect({ navigation }) {
         }
     };
 
-    const preprocessWaveform = async (buffer: ArrayBuffer) => {
-        const FRAME_SIZE = 16000;
-        const FRAME_HOP = 8000;
+    const getSpectrogram = (samples: Float32Array) => {
+        const fft = new FFT(samples.length);
+        const real = new Array(samples.length).fill(0);
+        const imag = new Array(samples.length).fill(0);
 
-        const audioArray = decodeSamples(buffer);
-
-        if (audioArray.length < FRAME_SIZE) {
-            const paddedAudio = new Float32Array(FRAME_SIZE);
-            paddedAudio.set(audioArray);
-
-            return tf.tensor2d([Array.from(paddedAudio)], [1, FRAME_SIZE]).expandDims(0);
+        for (let i = 0; i < samples.length; i++) {
+            real[i] = samples[i];
         }
 
-        const numFrames = Math.floor((audioArray.length - FRAME_HOP) / FRAME_HOP) + 1;
-        const frames = [];
-        for (let i = 0; i < numFrames; i++) {
-            const start = i * FRAME_HOP;
-            const end = start + FRAME_SIZE;
-            const frame = audioArray.slice(start, end);
+        fft.realTransform(real, imag);
+        fft.completeSpectrum(real);
+        
+        const inputTensor = tf.randomUniform([1, 224, 224]);
 
-            if (frame.length < FRAME_SIZE) {
-                const paddedFrame = new Float32Array(FRAME_SIZE);
-                paddedFrame.set(frame);
-                frames.push(Array.from(paddedFrame));
-            } else {
-                frames.push(Array.from(frame));
-            }
-        }
-
-        console.log("Number of frames:", frames.length, "Frame size:", frames[0]?.length);
-
-        if (frames.length === 0) {
-            throw new Error("No valid frames could be generated from the audio.");
-        }
-
-        const tensorFrames = tf.tensor2d(frames, [frames.length, FRAME_SIZE]);
-        console.log("TensorFrames shape:", tensorFrames.shape);
-
-        return tensorFrames.expandDims(0);
+        return inputTensor.expandDims(0);
     };
 
     const predictLabel = async () => {
@@ -165,10 +143,18 @@ export default function Detect({ navigation }) {
             setIsBusy(true);
             Toast.hide();
             console.log(savedRecording);
-            const response = await fetch(savedRecording.getURI());
+
+            const m4a_path = savedRecording.getURI();
+            const wav_path = "/data/user/0/host.exp.exponent/cache/rec.wav";
+
+            await FFmpegKit.execute(`-i ${m4a_path.slice(7)} ${wav_path}`);
+
+            const response = await fetch(wav_path);
             const buffer = await response.arrayBuffer();
 
-            const inputTensor = await preprocessWaveform(buffer);
+            const samples = preprocessWaveform(buffer);
+            const inputTensor = getSpectrogram(samples);
+
             await tf.nextFrame();
 
             const output = model.predict(inputTensor);
@@ -189,23 +175,16 @@ export default function Detect({ navigation }) {
         }
     };
 
-    const decodeSamples = (buffer: ArrayBuffer) => {
-        const samples = new Uint8Array(buffer);
-        // console.log(samples);
+    const preprocessWaveform = (buffer: ArrayBuffer) => {
+        const offset = new Uint8Array(buffer.slice(0, 4))[3];
+        const sizeBuffer = new Uint8Array(buffer.slice(offset, offset + 4));
+        const size = sizeBuffer[0]*256*256*256 + sizeBuffer[1]*256*256 + sizeBuffer[2]*256 + sizeBuffer[3];
 
-        // console.log(new Uint8Array(buffer.slice(0, 44)));
-        // const offset = new Uint8Array(buffer.slice(0, 4))[3];
-        // const sizeBuffer = new Uint8Array(buffer.slice(offset, offset + 4));
-        // const size = sizeBuffer[0]*256*256*256 + sizeBuffer[1]*256*256 + sizeBuffer[2]*256 + sizeBuffer[3];
-
-        // console.log(offset);
-        // console.log(sizeBuffer);
-        // console.log(size);
-        // const arrInt = new Uint16Array(buffer.slice(offset + 8, offset + 8 + size));
+        const samples = new Uint16Array(buffer.slice(offset + 8, offset + 8 + size));
 
         const samplesFloat = new Float32Array(samples.length);
         for (let i = 0; i < samplesFloat.length; i++) {
-            samplesFloat[i] = (samples[i] < 0) ? (samples[i] / 128.0) : (samples[i] / 127.0);
+            samplesFloat[i] = (samples[i] < 0) ? (samples[i] / 256.0) : (samples[i] / 255.0);
         }
 
         return samplesFloat;
