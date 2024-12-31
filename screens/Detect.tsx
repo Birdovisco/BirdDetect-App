@@ -1,26 +1,26 @@
-import React, { useEffect, useState } from "react";
-import {
-    View,
-    TouchableOpacity,
-    Image,
-    Text,
-    ActivityIndicator
-} from "react-native";
-import { Audio } from "expo-av";
+import React, {useEffect, useState} from "react";
+import {ActivityIndicator, Image, Text, TouchableOpacity, View} from "react-native";
+import {Audio} from "expo-av";
 import Ionicons from "react-native-vector-icons/Ionicons";
 import * as Animatable from "react-native-animatable";
 import Toast from "react-native-toast-message";
 import * as tf from "@tensorflow/tfjs";
-import { bundleResourceIO } from "@tensorflow/tfjs-react-native";
+import {bundleResourceIO} from "@tensorflow/tfjs-react-native";
 import "@tensorflow/tfjs-backend-webgl";
+import { AndroidOutputFormat, AndroidAudioEncoder, IOSOutputFormat, IOSAudioQuality } from "expo-av/build/Audio";
+import { FFmpegKit } from 'ffmpeg-kit-react-native';
+import FFT from 'fft.js';
+
 
 export default function Detect({ navigation }) {
     const MINIMUM_RECORDING_DURATION = 2000;
     const [recordingStartTime, setRecordingStartTime] = useState(null);
     const [recording, setRecording] = useState(null);
     const [savedRecording, setSavedRecording] = useState(null);
-    const [prediction, setPrediction] = useState(undefined);
+    
     const [model, setModel] = useState(null);
+    const [prediction, setPrediction] = useState(undefined);
+
     const [buttonDisabled, setButtonDisabled] = useState(true);
     const [isBusy, setIsBusy] = useState(false);
     const [showBird, setShowBird] = useState(false);
@@ -71,7 +71,32 @@ export default function Detect({ navigation }) {
                     allowsRecordingIOS: true,
                     playsInSilentModeIOS: true
                 });
-                const { recording } = await Audio.Recording.createAsync(Audio.RecordingOptionsPresets.HIGH_QUALITY);
+                const { recording } = await Audio.Recording.createAsync({
+                    isMeteringEnabled: true,
+                    android: {
+                      extension: '.m4a',
+                      outputFormat: AndroidOutputFormat.MPEG_4,
+                      audioEncoder: AndroidAudioEncoder.AAC,
+                      sampleRate: 16000,
+                      numberOfChannels: 1,
+                      bitRate: 128000,
+                    },
+                    ios: {
+                      extension: '.m4a',
+                      outputFormat: IOSOutputFormat.MPEG4AAC,
+                      audioQuality: IOSAudioQuality.MAX,
+                      sampleRate: 16000,
+                      numberOfChannels: 1,
+                      bitRate: 128000,
+                      linearPCMBitDepth: 16,
+                      linearPCMIsBigEndian: false,
+                      linearPCMIsFloat: false,
+                    },
+                    web: {
+                      mimeType: 'audio/webm',
+                      bitsPerSecond: 128000,
+                    },
+                  });
                 setRecording(recording);
                 setRecordingStartTime(Date.now());
             }
@@ -96,35 +121,75 @@ export default function Detect({ navigation }) {
         }
     };
 
+    const getSpectrogram = (samples: Float32Array) => {
+        const fft = new FFT(samples.length);
+        const real = new Array(samples.length).fill(0);
+        const imag = new Array(samples.length).fill(0);
+
+        for (let i = 0; i < samples.length; i++) {
+            real[i] = samples[i];
+        }
+
+        fft.realTransform(real, imag);
+        fft.completeSpectrum(real);
+        
+        const inputTensor = tf.randomUniform([1, 224, 224]);
+
+        return inputTensor.expandDims(0);
+    };
+
     const predictLabel = async () => {
         try {
             setIsBusy(true);
             Toast.hide();
-            const response = await fetch(savedRecording.getURI());
+            console.log(savedRecording);
+
+            const m4a_path = savedRecording.getURI();
+            const wav_path = "/data/user/0/host.exp.exponent/cache/rec.wav";
+
+            await FFmpegKit.execute(`-i ${m4a_path.slice(7)} ${wav_path}`);
+
+            const response = await fetch(wav_path);
             const buffer = await response.arrayBuffer();
-            const input = tf.tensor(decodeAudio(buffer));
+
+            const samples = preprocessWaveform(buffer);
+            const inputTensor = getSpectrogram(samples);
 
             await tf.nextFrame();
-            const output = model.predict(input).argMax(0);
-            setPrediction(output);
+
+            const output = model.predict(inputTensor);
+            const predictedClass = output.argMax(-1);
+            console.log(predictedClass.dataSync()[0]);
+            setPrediction(predictedClass);
             showToast("success", "Prediction complete!", "Bird identified");
         } catch (error) {
             console.error("Prediction error:", error);
-            showToast("error", "Prediction failed", "Please try again later");
+            if (error.message.includes("No valid frames")) {
+                showToast("error", "Audio too short", "Please record longer audio.");
+            } else {
+                showToast("error", "Prediction failed", "Please try again later.");
+            }
         } finally {
             setIsBusy(false);
             setButtonDisabled(false);
         }
     };
 
-    const decodeAudio = (buffer) => {
-        const arrInt = new Int16Array(buffer.slice(0, buffer.byteLength - buffer.byteLength % 2));
-        const arrFloat = new Float32Array(arrInt.length);
-        for (let i = 0; i < arrFloat.length; i++) {
-            arrFloat[i] = arrInt[i] / 32768;
+    const preprocessWaveform = (buffer: ArrayBuffer) => {
+        const offset = new Uint8Array(buffer.slice(0, 4))[3];
+        const sizeBuffer = new Uint8Array(buffer.slice(offset, offset + 4));
+        const size = sizeBuffer[0]*256*256*256 + sizeBuffer[1]*256*256 + sizeBuffer[2]*256 + sizeBuffer[3];
+
+        const samples = new Uint16Array(buffer.slice(offset + 8, offset + 8 + size));
+
+        const samplesFloat = new Float32Array(samples.length);
+        for (let i = 0; i < samplesFloat.length; i++) {
+            samplesFloat[i] = (samples[i] < 0) ? (samples[i] / 256.0) : (samples[i] / 255.0);
         }
-        return arrFloat;
+
+        return samplesFloat;
     };
+
 
     useEffect(() => {
         if (savedRecording) {

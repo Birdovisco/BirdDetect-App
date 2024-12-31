@@ -37,10 +37,16 @@ export const BIRDS = [
         desc: "Gatunek średniego, wędrownego ptaka wodnego z rodziny mewowatych. To najpowszechniejsza z małych mew.",
     },
     {
-        name: 'Gołąb miejski',
-        latinName: 'Columba livia forma urbana',
-        photo: require('~/assets/birdPhotos/gołąb miejski.jpg'),
-        desc: "Gatunek synantropijny wywodzący się od udomowionego gołębia skalnego. Żywi się nasionami i odpadkami, bywa też dokarmiany przez ludzi.",
+        name: 'Kawka',
+        latinName: 'Coloeus monedula',
+        photo: require('~/assets/birdPhotos/kawka.jpg'),
+        desc: "Gatunek średniej wielkości ptaka synantropijnego z rodziny krukowatych. W Polsce średnio liczny ptak lęgowy.",
+    },
+    {
+        name: 'Gołąb skalny',
+        latinName: 'Columba livia',
+        photo: require('~/assets/birdPhotos/gołąb skalny.jpg'),
+        desc: "Gatunek średniej wielkości ptaka z rodziny gołębiowatych. Żywi się nasionami i odpadkami, bywa też dokarmiany przez ludzi.",
     },
     {
         name: 'Grzywacz',
@@ -54,12 +60,7 @@ export const BIRDS = [
         photo: require('~/assets/birdPhotos/gawron.jpg'),
         desc: "Gatunek dużej wielkości ptaka synantropijnego z rodziny krukowatych. Zamieszkuje niemal całą Europę oraz część Azji.",
     },
-    {
-        name: 'Kawka',
-        latinName: 'Corvus monedula',
-        photo: require('~/assets/birdPhotos/kawka.jpg'),
-        desc: "Gatunek średniej wielkości ptaka synantropijnego z rodziny krukowatych. W Polsce średnio liczny ptak lęgowy.",
-    },
+
     {
         name: 'Kukułka',
         latinName: 'Cuculus canorus',
