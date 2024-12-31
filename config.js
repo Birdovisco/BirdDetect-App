@@ -43,10 +43,10 @@ export const BIRDS = [
         desc: "Gatunek średniej wielkości ptaka synantropijnego z rodziny krukowatych. W Polsce średnio liczny ptak lęgowy.",
     },
     {
-        name: 'Gołąb miejski',
-        latinName: 'Columba livia domestica',
-        photo: require('~/assets/birdPhotos/gołąb miejski.jpg'),
-        desc: "Gatunek synantropijny wywodzący się od udomowionego gołębia skalnego. Żywi się nasionami i odpadkami, bywa też dokarmiany przez ludzi.",
+        name: 'Gołąb skalny',
+        latinName: 'Columba livia',
+        photo: require('~/assets/birdPhotos/gołąb skalny.jpg'),
+        desc: "Gatunek średniej wielkości ptaka z rodziny gołębiowatych. Żywi się nasionami i odpadkami, bywa też dokarmiany przez ludzi.",
     },
     {
         name: 'Grzywacz',
