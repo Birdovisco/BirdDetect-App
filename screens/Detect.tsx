@@ -1,6 +1,5 @@
 import React, {useEffect, useRef, useState} from "react";
-import {ActivityIndicator, Image, Text, TouchableOpacity, View} from "react-native";
-import {Audio} from "expo-av";
+import {ActivityIndicator, Image, PermissionsAndroid, Text, TouchableOpacity, View} from "react-native";
 import Ionicons from "react-native-vector-icons/Ionicons";
 import * as Animatable from "react-native-animatable";
 import Toast from "react-native-toast-message";
@@ -40,15 +39,15 @@ export default function Detect({ navigation }) {
                 require("../model/group1-shard3of4.bin"),
                 require("../model/group1-shard4of4.bin")
             ];
-            showToast("info", "Loading model...", "Please wait for the model to load");
+            showToast("info", "Ładowanie modelu...", "Zaczekaj, aż model się załaduje", false);
             try {
                 const loadedModel = await tf.loadGraphModel(bundleResourceIO(modelJson, modelWeights));
                 setModel(loadedModel);
                 setButtonDisabled(false);
-                showToast("success", "Model loaded!", "Model is ready for prediction");
+                showToast("success", "Model załadowany!", "Model jest gotowy do predykcji");
             } catch (error) {
                 console.error("Failed to load model", error);
-                showToast("error", "Error loading model", "Please try again later");
+                showToast("error", "Błąd przy ładowaniu modelu", "Spróbuj ponownie");
             } finally {
                 setIsBusy(false);
             }
@@ -57,20 +56,20 @@ export default function Detect({ navigation }) {
         loadModel();
     }, []);
 
-    const showToast = (type: string, text1: string, text2: string) => {
+    const showToast = (type: string, text1: string, text2: string, autoHide: boolean=true) => {
         Toast.show({
             type,
             text1,
             text2,
-            position: "bottom"
+            position: "bottom",
+            autoHide: autoHide
         });
     };
 
     const startRecording = async () => {
         try {
-            const perm = await Audio.requestPermissionsAsync();
-            if (perm.status === "granted") {
-                setIsRecording(true);
+            const perm = await PermissionsAndroid.request(PermissionsAndroid.PERMISSIONS.RECORD_AUDIO);
+            if (perm === 'granted') {
                 AudioRecord.init({
                     sampleRate: 16000,
                     channels: 1,
@@ -79,12 +78,14 @@ export default function Detect({ navigation }) {
                     wavFile: 'audio.wav'
                 });
                 recording.current = [];
-        
+                
                 AudioRecord.on('data', data => {
                     const samples = new Int8Array(Buffer.from(data, 'base64'));
                     recording.current.push(...samples);
                 });
-
+                
+                setIsRecording(true);
+                showToast("info", "Nagrywanie...", "Staraj się nagrywać jak najbliżej ptaka");
                 AudioRecord.start();
                 setRecordingStartTime(Date.now());
             }
@@ -98,42 +99,35 @@ export default function Detect({ navigation }) {
         if (isRecording) {
             const elapsedTime = Date.now() - recordingStartTime;
             if (elapsedTime < MINIMUM_RECORDING_DURATION) {
-                showToast("error", "Recording is too short", `Please record for at least ${MINIMUM_RECORDING_DURATION / 1000} seconds.`);
+                showToast("error", "Nagranie za krótkie", `Nagraj conajmniej ${MINIMUM_RECORDING_DURATION / 1000}-sekundowe nagranie.`);
                 return;
             }
 
-            const path = await AudioRecord.stop();
-            setRecpath(path);
             setButtonDisabled(true);
             setShowBird(false);
             setPrediction(undefined);
+            const path = await AudioRecord.stop();
+            setRecpath(path);
             setIsRecording(false);
             setAudioRecorded(true);
         }
     };
 
-    const getSpectrogram = async (samples) => {
+    const getSpectrogram = (samples) => {
         const stft = tf.signal.stft(tf.tensor1d(samples), 2048, 512, 2048);
         const magnitude = tf.abs(stft);
         const amin = tf.scalar(2e-5);
         const refValue = magnitude.max();
 
-        // log_spec = 10.0 * np.log10(np.maximum(amin, magnitude2))
-        // log_spec -= 10.0 * np.log10(np.maximum(amin, ref_value))
-        // db = np.maximum(log_spec, log_spec.max() - top_db)
-
         const logSpec = tf.tidy(() => tf.maximum(amin, magnitude).log().mul(tf.scalar(10))
         .sub(tf.maximum(amin, refValue).log().mul(tf.scalar(10))));
-
         const db = tf.maximum(logSpec, logSpec.max().sub(tf.scalar(80)));
 
         const numBins = db.shape[1];
-        const logIndices = tf.linspace(1, Math.log(numBins + 1), numBins).exp().sub(1).toInt();
-
+        const logIndices = tf.linspace(1, Math.log(numBins + 1), numBins).sub(1).toInt();
         const logScale = tf.gather(db, logIndices, 1);
 
         const specTransform = tf.image.flipLeftRight(logScale.reshape([1, logScale.shape[0], logScale.shape[1], 1])).reshape([logScale.shape[0], logScale.shape[1]]);
-
         const spectrogram = tf.image.resizeBilinear(specTransform.transpose().reshape([specTransform.shape[1], specTransform.shape[0], 1]), [224, 224]);
 
         const minVal = spectrogram.min();
@@ -145,11 +139,12 @@ export default function Detect({ navigation }) {
 
     const predictLabel = async () => {
         try {
-            const samples = await preprocessWaveform(new Int8Array(recording.current));
-            recording.current = [];
+            setIsBusy(true);
+            Toast.hide();
 
-            await tf.nextFrame();
-            const inputTensor = await getSpectrogram(samples);
+            const samples = preprocessWaveform(new Int8Array(recording.current));
+            recording.current = [];
+            const inputTensor = getSpectrogram(samples);
 
             await tf.nextFrame();
             const output = model.predict(inputTensor);
@@ -157,21 +152,22 @@ export default function Detect({ navigation }) {
             console.log(predictedClass.dataSync()[0]);
 
             setPrediction(predictedClass);
-            showToast("success", "Prediction complete!", "Bird identified");
+            showToast("success", "Predykcja gotowa!", "Ptak zidentyfikowany");
         } catch (error) {
             console.error("Prediction error:", error);
             if (error.message.includes("No valid frames")) {
-                showToast("error", "Audio too short", "Please record longer audio.");
+                showToast("error", "Nagranie za krótkie", "Nagraj dłuższe nagranie.");
             } else {
-                showToast("error", "Prediction failed", "Please try again later.");
+                showToast("error", "Predykcja nie udała się", "Spróbuj ponownie.");
             }
         } finally {
             setIsBusy(false);
             setButtonDisabled(false);
+            setAudioRecorded(false);
         }
     };
 
-    const preprocessWaveform = async (arrInt8) => {
+    const preprocessWaveform = (arrInt8) => {
         const arrInt16 = new Int16Array(
             arrInt8.reduce((acc, _, i) => {
               if (i % 2 === 0) {
@@ -197,16 +193,14 @@ export default function Detect({ navigation }) {
 
 
     useEffect(() => {
-        if (audioRecorded == true) {
-            setIsBusy(true);
-            showToast("info", "Processing prediction...", "Please wait for the result");
+        if (audioRecorded) {
+            showToast("info", "Przetwarzanie nagrania...", "Zaczekaj na wynik", false);
             predictLabel();
-            setAudioRecorded(false);
         }
     }, [audioRecorded]);
 
     useEffect(() => {
-        if (prediction) setShowBird(true);
+        if (recPath && prediction) setShowBird(true);
     }, [prediction]);
 
     useEffect(() => {
@@ -225,8 +219,8 @@ export default function Detect({ navigation }) {
     return (
         <View className="flex-1 items-center justify-center bg-primary">
             <View className="justify-center items-center mb-10">
-                <Text className="text-white text-4xl font-bold text-center mb-1">RECORD</Text>
-                <Text className="text-white text-4xl font-bold text-center mb-10">THE BIRD</Text>
+                <Text className="text-white text-4xl font-bold text-center mb-1">NAGRAJ</Text>
+                <Text className="text-white text-4xl font-bold text-center mb-10">PTAKA</Text>
                 {isRecording ? (
                     <View className="flex-row space-x-1 h-14">
                         <Animatable.View className="w-1 bg-white" animation={bouncingAnimation} iterationCount="infinite" duration={400} delay={200} />
@@ -243,7 +237,7 @@ export default function Detect({ navigation }) {
 
             <TouchableOpacity
                 disabled={buttonDisabled}
-                onPress={isRecording ? stopRecording : startRecording}
+                onPress={isRecording === true ? stopRecording : startRecording}
                 className="justify-center items-center bg-primary"
             >
                 <View className="w-56 h-56 rounded-full justify-center items-center bg-primary border-2 border-dashed border-white">
