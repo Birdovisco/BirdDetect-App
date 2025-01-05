@@ -1,4 +1,4 @@
-import React, {useEffect, useState} from "react";
+import React, {useEffect, useRef, useState} from "react";
 import {ActivityIndicator, Image, Text, TouchableOpacity, View} from "react-native";
 import {Audio} from "expo-av";
 import Ionicons from "react-native-vector-icons/Ionicons";
@@ -7,20 +7,22 @@ import Toast from "react-native-toast-message";
 import * as tf from "@tensorflow/tfjs";
 import {bundleResourceIO} from "@tensorflow/tfjs-react-native";
 import "@tensorflow/tfjs-backend-webgl";
-import { AndroidOutputFormat, AndroidAudioEncoder, IOSOutputFormat, IOSAudioQuality } from "expo-av/build/Audio";
-import { FFmpegKit } from 'ffmpeg-kit-react-native';
-import FFT from 'fft.js';
+import AudioRecord from 'react-native-audio-record';
+import { Buffer } from 'buffer';
 
 
 export default function Detect({ navigation }) {
     const MINIMUM_RECORDING_DURATION = 2000;
+    const MAX_SAMPLES_LENGTH = 320000; // sr=16000 * secs=20
     const [recordingStartTime, setRecordingStartTime] = useState(null);
-    const [recording, setRecording] = useState(null);
-    const [savedRecording, setSavedRecording] = useState(null);
+    const [isRecording, setIsRecording] = useState(false);
+    const recording = useRef([]);
+    const [recPath, setRecpath] = useState(null);
     
     const [model, setModel] = useState(null);
     const [prediction, setPrediction] = useState(undefined);
 
+    const [audioRecorded, setAudioRecorded] = useState(false);
     const [buttonDisabled, setButtonDisabled] = useState(true);
     const [isBusy, setIsBusy] = useState(false);
     const [showBird, setShowBird] = useState(false);
@@ -29,6 +31,7 @@ export default function Detect({ navigation }) {
         const loadModel = async () => {
             setIsBusy(true);
             setButtonDisabled(true);
+
             await tf.ready();
             const modelJson = require("../model/model.json");
             const modelWeights = [
@@ -67,99 +70,92 @@ export default function Detect({ navigation }) {
         try {
             const perm = await Audio.requestPermissionsAsync();
             if (perm.status === "granted") {
-                await Audio.setAudioModeAsync({
-                    allowsRecordingIOS: true,
-                    playsInSilentModeIOS: true
+                setIsRecording(true);
+                AudioRecord.init({
+                    sampleRate: 16000,
+                    channels: 1,
+                    bitsPerSample: 16,
+                    audioSource: 6,
+                    wavFile: 'audio.wav'
                 });
-                const { recording } = await Audio.Recording.createAsync({
-                    isMeteringEnabled: true,
-                    android: {
-                      extension: '.m4a',
-                      outputFormat: AndroidOutputFormat.MPEG_4,
-                      audioEncoder: AndroidAudioEncoder.AAC,
-                      sampleRate: 16000,
-                      numberOfChannels: 1,
-                      bitRate: 128000,
-                    },
-                    ios: {
-                      extension: '.m4a',
-                      outputFormat: IOSOutputFormat.MPEG4AAC,
-                      audioQuality: IOSAudioQuality.MAX,
-                      sampleRate: 16000,
-                      numberOfChannels: 1,
-                      bitRate: 128000,
-                      linearPCMBitDepth: 16,
-                      linearPCMIsBigEndian: false,
-                      linearPCMIsFloat: false,
-                    },
-                    web: {
-                      mimeType: 'audio/webm',
-                      bitsPerSecond: 128000,
-                    },
-                  });
-                setRecording(recording);
+                recording.current = [];
+        
+                AudioRecord.on('data', data => {
+                    const samples = new Int8Array(Buffer.from(data, 'base64'));
+                    recording.current.push(...samples);
+                });
+
+                AudioRecord.start();
                 setRecordingStartTime(Date.now());
             }
         } catch (err) {
             console.error("Failed to start recording:", err);
+            setIsRecording(false);
         }
     };
 
     const stopRecording = async () => {
-        if (recording) {
+        if (isRecording) {
             const elapsedTime = Date.now() - recordingStartTime;
             if (elapsedTime < MINIMUM_RECORDING_DURATION) {
                 showToast("error", "Recording is too short", `Please record for at least ${MINIMUM_RECORDING_DURATION / 1000} seconds.`);
                 return;
             }
+
+            const path = await AudioRecord.stop();
+            setRecpath(path);
             setButtonDisabled(true);
             setShowBird(false);
             setPrediction(undefined);
-            await recording.stopAndUnloadAsync();
-            setSavedRecording(recording);
-            setRecording(null);
+            setIsRecording(false);
+            setAudioRecorded(true);
         }
     };
 
-    const getSpectrogram = (samples: Float32Array) => {
-        const fft = new FFT(samples.length);
-        const real = new Array(samples.length).fill(0);
-        const imag = new Array(samples.length).fill(0);
+    const getSpectrogram = async (samples) => {
+        const stft = tf.signal.stft(tf.tensor1d(samples), 2048, 512, 2048);
+        const magnitude = tf.abs(stft);
+        const amin = tf.scalar(2e-5);
+        const refValue = magnitude.max();
 
-        for (let i = 0; i < samples.length; i++) {
-            real[i] = samples[i];
-        }
+        // log_spec = 10.0 * np.log10(np.maximum(amin, magnitude2))
+        // log_spec -= 10.0 * np.log10(np.maximum(amin, ref_value))
+        // db = np.maximum(log_spec, log_spec.max() - top_db)
 
-        fft.realTransform(real, imag);
-        fft.completeSpectrum(real);
-        
-        const inputTensor = tf.randomUniform([1, 224, 224]);
+        const logSpec = tf.tidy(() => tf.maximum(amin, magnitude).log().mul(tf.scalar(10))
+        .sub(tf.maximum(amin, refValue).log().mul(tf.scalar(10))));
 
-        return inputTensor.expandDims(0);
+        const db = tf.maximum(logSpec, logSpec.max().sub(tf.scalar(80)));
+
+        const numBins = db.shape[1];
+        const logIndices = tf.linspace(1, Math.log(numBins + 1), numBins).exp().sub(1).toInt();
+
+        const logScale = tf.gather(db, logIndices, 1);
+
+        const specTransform = tf.image.flipLeftRight(logScale.reshape([1, logScale.shape[0], logScale.shape[1], 1])).reshape([logScale.shape[0], logScale.shape[1]]);
+
+        const spectrogram = tf.image.resizeBilinear(specTransform.transpose().reshape([specTransform.shape[1], specTransform.shape[0], 1]), [224, 224]);
+
+        const minVal = spectrogram.min();
+        const maxVal = spectrogram.max();
+
+        const grayscaleSpec = tf.tidy(() => spectrogram.sub(minVal).div(maxVal.sub(minVal)));
+        return grayscaleSpec.reshape([1, 224, 224]).reshape([-1, 1, 224, 224]);
     };
 
     const predictLabel = async () => {
         try {
-            setIsBusy(true);
-            Toast.hide();
-            console.log(savedRecording);
-
-            const m4a_path = savedRecording.getURI();
-            const wav_path = "/data/user/0/host.exp.exponent/cache/rec.wav";
-
-            await FFmpegKit.execute(`-i ${m4a_path.slice(7)} ${wav_path}`);
-
-            const response = await fetch(wav_path);
-            const buffer = await response.arrayBuffer();
-
-            const samples = preprocessWaveform(buffer);
-            const inputTensor = getSpectrogram(samples);
+            const samples = await preprocessWaveform(new Int8Array(recording.current));
+            recording.current = [];
 
             await tf.nextFrame();
+            const inputTensor = await getSpectrogram(samples);
 
+            await tf.nextFrame();
             const output = model.predict(inputTensor);
             const predictedClass = output.argMax(-1);
             console.log(predictedClass.dataSync()[0]);
+
             setPrediction(predictedClass);
             showToast("success", "Prediction complete!", "Bird identified");
         } catch (error) {
@@ -175,36 +171,47 @@ export default function Detect({ navigation }) {
         }
     };
 
-    const preprocessWaveform = (buffer: ArrayBuffer) => {
-        const offset = new Uint8Array(buffer.slice(0, 4))[3];
-        const sizeBuffer = new Uint8Array(buffer.slice(offset, offset + 4));
-        const size = sizeBuffer[0]*256*256*256 + sizeBuffer[1]*256*256 + sizeBuffer[2]*256 + sizeBuffer[3];
+    const preprocessWaveform = async (arrInt8) => {
+        const arrInt16 = new Int16Array(
+            arrInt8.reduce((acc, _, i) => {
+              if (i % 2 === 0) {
+                const low = arrInt8[i];
+                const high = arrInt8[i + 1];
+                acc.push((high << 8) | (low & 0xff));
+              }
+              return acc;
+            }, [])
+        );
 
-        const samples = new Uint16Array(buffer.slice(offset + 8, offset + 8 + size));
+        const samples = new Float32Array(
+            arrInt16.reduce((acc, val) => {
+              acc.push(val / 32768.0);
+              return acc;
+            }, [])
+        );
+        const samplesFilled = new Float32Array(MAX_SAMPLES_LENGTH);
+        samplesFilled.set(samples.slice(0, MAX_SAMPLES_LENGTH));
 
-        const samplesFloat = new Float32Array(samples.length);
-        for (let i = 0; i < samplesFloat.length; i++) {
-            samplesFloat[i] = (samples[i] < 0) ? (samples[i] / 256.0) : (samples[i] / 255.0);
-        }
-
-        return samplesFloat;
+        return samples;
     };
 
 
     useEffect(() => {
-        if (savedRecording) {
+        if (audioRecorded == true) {
+            setIsBusy(true);
             showToast("info", "Processing prediction...", "Please wait for the result");
             predictLabel();
+            setAudioRecorded(false);
         }
-    }, [savedRecording]);
+    }, [audioRecorded]);
 
     useEffect(() => {
-        if (savedRecording && prediction) setShowBird(true);
+        if (prediction) setShowBird(true);
     }, [prediction]);
 
     useEffect(() => {
         if (showBird) {
-            navigation.navigate("BirdDetails", { rec: savedRecording, lab: prediction.dataSync()[0] });
+            navigation.navigate("BirdDetails", { rec: recPath, lab: prediction.dataSync()[0] });
             setButtonDisabled(false);
         }
     }, [showBird]);
@@ -220,7 +227,7 @@ export default function Detect({ navigation }) {
             <View className="justify-center items-center mb-10">
                 <Text className="text-white text-4xl font-bold text-center mb-1">RECORD</Text>
                 <Text className="text-white text-4xl font-bold text-center mb-10">THE BIRD</Text>
-                {recording ? (
+                {isRecording ? (
                     <View className="flex-row space-x-1 h-14">
                         <Animatable.View className="w-1 bg-white" animation={bouncingAnimation} iterationCount="infinite" duration={400} delay={200} />
                         <Animatable.View className="w-1 bg-white" animation={bouncingAnimation} iterationCount="infinite" duration={400} delay={50} />
@@ -236,7 +243,7 @@ export default function Detect({ navigation }) {
 
             <TouchableOpacity
                 disabled={buttonDisabled}
-                onPress={recording ? stopRecording : startRecording}
+                onPress={isRecording ? stopRecording : startRecording}
                 className="justify-center items-center bg-primary"
             >
                 <View className="w-56 h-56 rounded-full justify-center items-center bg-primary border-2 border-dashed border-white">

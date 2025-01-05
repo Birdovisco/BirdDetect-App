@@ -12,7 +12,7 @@ export default function BirdDetails({ route }) {
 
     useEffect(() => {
         const loadRecording = async () => {
-            if (rec) await sound.current.loadAsync({ uri: rec.getURI() });
+            if (rec) await sound.current.loadAsync({ uri: rec });
         };
 
         loadRecording();
