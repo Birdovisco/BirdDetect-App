@@ -223,10 +223,10 @@ export default function Detect({ navigation }) {
                 <Text className="text-white text-4xl font-bold text-center mb-10">PTAKA</Text>
                 {isRecording ? (
                     <View className="flex-row space-x-1 h-14">
-                        <Animatable.View className="w-1 bg-white" animation={bouncingAnimation} iterationCount="infinite" duration={400} delay={200} />
-                        <Animatable.View className="w-1 bg-white" animation={bouncingAnimation} iterationCount="infinite" duration={400} delay={50} />
-                        <Animatable.View className="w-1 bg-white" animation={bouncingAnimation} iterationCount="infinite" duration={400} delay={300} />
-                        <Animatable.View className="w-1 bg-white" animation={bouncingAnimation} iterationCount="infinite" duration={400} />
+                        <Animatable.View className="w-1 bg-white" style={{ alignSelf: 'center' }}  animation={bouncingAnimation} iterationCount="infinite" duration={400} delay={240} />
+                        <Animatable.View className="w-1 bg-white" style={{ alignSelf: 'center' }}  animation={bouncingAnimation} iterationCount="infinite" duration={400} delay={350} />
+                        <Animatable.View className="w-1 bg-white" style={{ alignSelf: 'center' }}  animation={bouncingAnimation} iterationCount="infinite" duration={400} delay={50} />
+                        <Animatable.View className="w-1 bg-white" style={{ alignSelf: 'center' }}  animation={bouncingAnimation} iterationCount="infinite" duration={400} delay={170} />
                     </View>
                 ) : (
                     <View className="flex-row space-x-1 h-14">
