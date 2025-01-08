@@ -12,7 +12,7 @@ export default function BirdDetails({ route }) {
 
     useEffect(() => {
         const loadRecording = async () => {
-            if (rec) await sound.current.loadAsync({ uri: rec.getURI() });
+            if (rec) await sound.current.loadAsync({ uri: rec });
         };
 
         loadRecording();
@@ -31,7 +31,7 @@ export default function BirdDetails({ route }) {
     return (
         <View className="flex-1" style={{ backgroundColor: theme.colors.primary }}>
             <View className="items-center">
-                <View className="w-64 h-64 rounded-full overflow-hidden border-4 border-black">
+                <View style={{zIndex: 100}} className="w-64 h-64 rounded-full overflow-hidden border-4 border-black">
                     <Image source={birdData.photo} className="w-full h-full" />
                 </View>
             </View>
