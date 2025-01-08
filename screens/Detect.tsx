@@ -14,7 +14,7 @@ export default function Detect({ navigation }) {
     const MINIMUM_RECORDING_DURATION = 2000;
     const MAX_SAMPLES_LENGTH = 320000; // sr=16000 * secs=20
     const [recordingStartTime, setRecordingStartTime] = useState(null);
-    const [isRecording, setIsRecording] = useState(false);
+    const [isRecording, setIsRecording] = useState(null);
     const recording = useRef([]);
     const [recPath, setRecpath] = useState(null);
     
@@ -30,6 +30,7 @@ export default function Detect({ navigation }) {
         const loadModel = async () => {
             setIsBusy(true);
             setButtonDisabled(true);
+            setIsRecording(false);
 
             await tf.ready();
             const modelJson = require("../model/model.json");
@@ -86,8 +87,8 @@ export default function Detect({ navigation }) {
                 
                 setIsRecording(true);
                 showToast("info", "Nagrywanie...", "Staraj się nagrywać jak najbliżej ptaka");
-                AudioRecord.start();
                 setRecordingStartTime(Date.now());
+                AudioRecord.start();
             }
         } catch (err) {
             console.error("Failed to start recording:", err);
@@ -114,27 +115,28 @@ export default function Detect({ navigation }) {
     };
 
     const getSpectrogram = (samples) => {
-        const stft = tf.signal.stft(tf.tensor1d(samples), 2048, 512, 2048);
-        const magnitude = tf.abs(stft);
-        const amin = tf.scalar(2e-5);
-        const refValue = magnitude.max();
+        const magnitude = tf.signal.stft(tf.tensor1d(samples), 2048, 512, 2048).abs();
+        const numBins = magnitude.shape[1];
+        const logIndices = tf.linspace(1, Math.log(numBins + 1), numBins).exp().sub(1).toInt();
+        const magnitudeLog = tf.gather(magnitude, logIndices, 1);
 
-        const logSpec = tf.tidy(() => tf.maximum(amin, magnitude).log().mul(tf.scalar(10))
-        .sub(tf.maximum(amin, refValue).log().mul(tf.scalar(10))));
-        const db = tf.maximum(logSpec, logSpec.max().sub(tf.scalar(80)));
+        const amin = tf.scalar(1e-10);
+        const refValue = tf.square(magnitude.max());
+        const ln10 = tf.scalar(Math.log(10));
 
-        const numBins = db.shape[1];
-        const logIndices = tf.linspace(1, Math.log(numBins + 1), numBins).sub(1).toInt();
-        const logScale = tf.gather(db, logIndices, 1);
+        const power = tf.square(magnitudeLog).abs();
+        const logSpec = tf.tidy(() => tf.maximum(amin, power).log().div(ln10).mul(tf.scalar(10))
+            .sub(tf.maximum(amin, refValue).log().div(ln10).mul(tf.scalar(10))));
+        const db = tf.maximum(logSpec, logSpec.max().sub(tf.scalar(80.0)));
 
-        const specTransform = tf.image.flipLeftRight(logScale.reshape([1, logScale.shape[0], logScale.shape[1], 1])).reshape([logScale.shape[0], logScale.shape[1]]);
-        const spectrogram = tf.image.resizeBilinear(specTransform.transpose().reshape([specTransform.shape[1], specTransform.shape[0], 1]), [224, 224]);
+        const specTransform = tf.image.flipLeftRight(db.reshape([1, db.shape[0], db.shape[1], 1])).reshape([db.shape[0], db.shape[1]]);
+        
+        const minVal = specTransform.min();
+        const maxVal = specTransform.max();
+        const grayscaleSpec = tf.tidy(() => specTransform.sub(minVal).div(maxVal.sub(minVal)));
 
-        const minVal = spectrogram.min();
-        const maxVal = spectrogram.max();
-
-        const grayscaleSpec = tf.tidy(() => spectrogram.sub(minVal).div(maxVal.sub(minVal)));
-        return grayscaleSpec.reshape([1, 224, 224]).reshape([-1, 1, 224, 224]);
+        const spectrogram = tf.image.resizeBilinear(grayscaleSpec.transpose().reshape([grayscaleSpec.shape[1], grayscaleSpec.shape[0], 1]), [224, 224]);
+        return spectrogram.reshape([1, 224, 224]).reshape([-1, 1, 224, 224]);
     };
 
     const predictLabel = async () => {
@@ -149,7 +151,6 @@ export default function Detect({ navigation }) {
             await tf.nextFrame();
             const output = model.predict(inputTensor);
             const predictedClass = output.argMax(-1);
-            console.log(predictedClass.dataSync()[0]);
 
             setPrediction(predictedClass);
             showToast("success", "Predykcja gotowa!", "Ptak zidentyfikowany");
@@ -188,7 +189,7 @@ export default function Detect({ navigation }) {
         const samplesFilled = new Float32Array(MAX_SAMPLES_LENGTH);
         samplesFilled.set(samples.slice(0, MAX_SAMPLES_LENGTH));
 
-        return samples;
+        return samplesFilled;
     };
 
 
